@@ -1,13 +1,11 @@
-import streamlit as st import requests import datetime from streamlit_autorefresh import st_autorefresh
-
-Configuração da página
+import streamlit as st
+import requests
+import datetime
 
 st.set_page_config(page_title="VINITAG", layout="wide")
 
-Neon CSS
-
+# 🌟 Neon CSS + Fonte Orbitron
 st.markdown("""
-
 <style>
 body {
     background-color: #0f0f0f;
@@ -21,43 +19,69 @@ body {
       0 0 20px #39ff14,
       0 0 40px #39ff14;
     color: #39ff14;
-    font-size: 3em;
-    text-align: center;
-    margin-top: 0.5em;
 }
 .panel {
     background: rgba(255, 255, 255, 0.05);
     padding: 2em;
     border-radius: 20px;
     box-shadow: 0 0 20px #0ff;
+    transform: perspective(600px) rotateY(5deg);
     margin-top: 2em;
 }
-</style><link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap" rel="stylesheet">
-""", unsafe_allow_html=True)Título 3D Neon
+</style>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600&display=swap" rel="stylesheet">
+""", unsafe_allow_html=True)
 
-st.markdown("""
+# 🌈 Título Neon 3D
+st.markdown("<h1 class='neon'>⚡ VINITAG - Futebol em Tempo Real ⚽</h1>", unsafe_allow_html=True)
 
-<h1 class='neon'>🔥 VINITAG - Partidas AO VIVO 🔥</h1>
-""", unsafe_allow_html=True)Atualiza a cada 30 segundos
+# 🔑 Chave da API
+API_KEY = st.secrets["api_football_key"]
+BASE_URL = "https://v3.football.api-sports.io"
+headers = {"x-apisports-key": API_KEY}
 
-st_autorefresh(interval=30 * 1000, key="live_data_refresh")
+# 📝 Entrada do usuário
+team_name = st.text_input("Digite o nome do time para buscar:", "Corinthians")
 
-API
+# 🔍 Busca os jogos
+if st.button("Buscar Partidas"):
+    with st.spinner("Buscando dados..."):
+        team_res = requests.get(BASE_URL + "/teams", params={"search": team_name}, headers=headers)
+        team_data = team_res.json().get("response", [])
 
-API_KEY = st.secrets["api_football_key"] BASE_URL = "https://v3.football.api-sports.io" headers = {"x-apisports-key": API_KEY}
+        if team_data:
+            team_id = team_data[0]["team"]["id"]
+            name = team_data[0]["team"]["name"]
+            logo = team_data[0]["team"]["logo"]
 
-Buscar jogos ao vivo
+            st.markdown(f"<div class='panel'><img src='{logo}' width='80'><h2 class='neon'>{name}</h2>", unsafe_allow_html=True)
 
-with st.spinner("Buscando jogos ao vivo..."): res = requests.get(BASE_URL + "/fixtures", params={"live": "all"}, headers=headers) matches = res.json().get("response", [])
+            # Últimos 10 dias
+            today = datetime.date.today()
+            last_10_days = today - datetime.timedelta(days=10)
 
-if matches: for match in matches: fixture = match["fixture"] league = match["league"]["name"] home = match["teams"]["home"] away = match["teams"]["away"] goals = match["goals"] status = fixture["status"]["elapsed"]
+            fixtures_res = requests.get(
+                BASE_URL + "/fixtures",
+                params={
+                    "team": team_id,
+                    "from": last_10_days,
+                    "to": today,
+                    "status": "FT",
+                    "limit": 5
+                },
+                headers=headers
+            )
+            matches = fixtures_res.json().get("response", [])
 
-st.markdown(f"""
-    <div class='panel'>
-        <h3 class='neon'>{league}</h3>
-        <p class='neon'>⏱ {status}' - <strong>{home['name']}</strong> {goals['home']} x {goals['away']} <strong>{away['name']}</strong></p>
-    </div>
-    """, unsafe_allow_html=True)
-
-else: st.warning("Nenhuma partida ao vivo neste momento.")
-
+            if matches:
+                for match in matches:
+                    date = match["fixture"]["date"][:10]
+                    home = match["teams"]["home"]["name"]
+                    away = match["teams"]["away"]["name"]
+                    score = f"{match['goals']['home']} x {match['goals']['away']}"
+                    st.markdown(f"<p class='neon'>{date}: <strong>{home}</strong> {score} <strong>{away}</strong></p>", unsafe_allow_html=True)
+            else:
+                st.warning("Sem partidas recentes encontradas.")
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            st.error("Time não encontrado.")
